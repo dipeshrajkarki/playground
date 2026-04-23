@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playground — dipeshrajkarki</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;0,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F5F1EA;
+    color: #0D1B2A;
+    min-height: 100vh;
+    padding: 48px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .kicker {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.22em;
+    text-transform: uppercase; color: #1E6F8C; margin-bottom: 12px;
+  }
+  h1 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(2rem, 6vw, 2.75rem);
+    font-weight: 600; letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .tagline { color: #556772; margin-bottom: 36px; font-size: 1rem; }
+  .project {
+    display: block; padding: 20px 22px; margin-bottom: 14px;
+    background: #FBFAF7; border: 1px solid #DDD6C8;
+    border-radius: 14px; text-decoration: none; color: inherit;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  }
+  .project:hover, .project:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(15, 59, 78, 0.08);
+    border-color: #1E6F8C; outline: none;
+  }
+  .project h2 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 1.35rem; font-weight: 600; margin-bottom: 4px;
+  }
+  .project p { color: #556772; font-size: 0.92rem; }
+  .project .meta {
+    display: inline-block; margin-top: 10px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #1E6F8C;
+  }
+  footer {
+    margin-top: 40px; text-align: center;
+    font-size: 0.82rem; color: #556772;
+  }
+  footer a { color: #1E6F8C; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Playground</div>
+  <h1>Side projects &amp; experiments</h1>
+  <p class="tagline">A place where small ideas live.</p>
+
+  <a class="project" href="./lofoten/">
+    <h2>Lofoten Road Trip Planner</h2>
+    <p>Interactive itinerary, route comparison, and map for a Nordic road trip.</p>
+    <span class="meta">Open →</span>
+  </a>
+
+  <footer>
+    <a href="https://github.com/dipeshrajkarki/playground">Source on GitHub</a>
+  </footer>
+</div>
+</body>
+</html>

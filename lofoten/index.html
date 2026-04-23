@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lofoten Road Trip Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    /* === Nordic Fjord palette — mapped onto legacy variable names === */
+    /* "blue" = fjord deep teal (primary, Norway route, links, day nums) */
+    --blue: #0F3B4E;
+    --blue-light: #D6E4EA;
+    /* "green" = pine forest (booked/success, Sweden route) */
+    --green: #2D6A4F;
+    --green-light: #DCE9DC;
+    /* "orange" = weathered amber (needs-booking, warnings) */
+    --orange: #B26734;
+    --orange-light: #F3E2CE;
+    /* "purple" = aurora teal (Lofoten star, optional) */
+    --purple: #1E6F8C;
+    --purple-light: #D6E9EF;
+    /* "red" = rorbuer red — iconic Lofoten fishing-cabin red (danger) */
+    --red: #B23A48;
+    --red-light: #F1D8DB;
+    --gray: #556772;          /* stone */
+    --gray-light: #EEE8DC;    /* mist / warm cream */
+    --dark: #0D1B2A;          /* midnight */
+    --white: #FBFAF7;         /* snow (warm, not stark) */
+    --border: #DDD6C8;        /* soft mist border */
+    --shadow: 0 2px 14px rgba(15, 59, 78, 0.08);
+    --shadow-lg: 0 10px 30px rgba(15, 59, 78, 0.12);
+    --radius: 14px;
+
+    /* Extra Nordic tokens for new accents */
+    --aurora-mint: #5EEAD4;
+    --midnight-sun: #E8B778;
+    --arctic-paper: #F5F1EA;
+
+    /* Typography */
+    --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  body {
+    font-family: var(--font-body);
+    background: var(--arctic-paper);
+    color: var(--dark);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
+  }
+  h1, h2, h3, .card-title, .route-card h3, .verdict-banner h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  a { color: var(--purple); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+  a:hover { border-bottom-color: var(--purple); }
+  a:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; border-radius: 2px; }
+
+  /* HEADER — Aurora over Fjord */
+  .hero {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(94, 234, 212, 0.35) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 20%, rgba(232, 183, 120, 0.25) 0%, transparent 55%),
+      radial-gradient(ellipse at 50% 90%, rgba(178, 58, 72, 0.18) 0%, transparent 60%),
+      linear-gradient(160deg, #0B2533 0%, #0F3B4E 45%, #1E6F8C 100%);
+    color: #F5F1EA;
+    padding: 44px 20px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 12% 32%, rgba(255,255,255,0.6), transparent),
+      radial-gradient(1px 1px at 78% 18%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1.5px 1.5px at 44% 70%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 88% 55%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 24% 82%, rgba(255,255,255,0.5), transparent);
+    pointer-events: none;
+    opacity: 0.9;
+  }
+  .hero-kicker {
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--aurora-mint);
+    margin-bottom: 10px;
+    opacity: 0.9;
+  }
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-style: italic;
+  }
+  .hero h1 .amp { font-style: italic; color: var(--midnight-sun); font-weight: 500; }
+  .hero p { opacity: 0.88; margin-top: 10px; font-size: 0.95rem; font-weight: 400; }
+  .hero-badges { display: flex; gap: 8px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+  .badge {
+    background: rgba(245, 241, 234, 0.1);
+    border: 1px solid rgba(245, 241, 234, 0.22);
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    backdrop-filter: blur(6px);
+  }
+  .hero-decision {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 8px 16px;
+    background: rgba(178, 58, 72, 0.22);
+    border: 1px solid rgba(232, 183, 120, 0.4);
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--midnight-sun);
+  }
+
+  /* NAV TABS */
+  .tabs {
+    display: flex;
+    overflow-x: auto;
+    background: rgba(251, 250, 247, 0.88);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: none;
+    padding: 14px 18px;
+    font-family: var(--font-body);
+    font-size: 0.84rem;
+    font-weight: 500;
+    color: var(--gray);
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+  }
+  .tab.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+    font-weight: 600;
+  }
+  .tab:hover:not(.active) { color: var(--dark); background: rgba(221, 214, 200, 0.3); }
+  .tab:focus-visible { outline: 2px solid var(--purple); outline-offset: -4px; border-radius: 4px; }
+
+  /* CONTENT */
+  .content { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--dark);
+    letter-spacing: -0.01em;
+  }
+
+  /* STOP MARKERS */
+  .stops-list { display: flex; flex-direction: column; gap: 0; }
+  .stop-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    position: relative;
+  }
+  .stop-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 36px;
+    bottom: -8px;
+    width: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .stop-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    font-weight: 700;
+    z-index: 1;
+    margin-top: 2px;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+  .stop-info { padding-bottom: 20px; flex: 1; }
+  .stop-name { font-weight: 700; font-size: 0.95rem; }
+  .stop-detail { font-size: 0.82rem; color: var(--gray); margin-top: 2px; }
+  .stop-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    margin-top: 6px;
+    letter-spacing: 0.01em;
+    font-family: var(--font-body);
+  }
+
+  /* BOOKING STATUS */
+  .booked { background: var(--green-light); color: var(--green); }
+  .needs-booking { background: var(--orange-light); color: var(--orange); }
+  .optional { background: var(--purple-light); color: var(--purple); }
+  .info-tag { background: var(--blue-light); color: var(--blue); }
+
+  /* ROUTE COMPARISON */
+  .route-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .route-grid { grid-template-columns: 1fr; } }
+  .route-card {
+    border-radius: var(--radius);
+    padding: 16px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .route-card.sweden { background: var(--green-light); border-color: var(--green); }
+  .route-card.norway { background: var(--blue-light); border-color: var(--blue); }
+  .route-card h3 { font-size: 1.3rem; font-weight: 600; margin-bottom: 4px; font-style: italic; letter-spacing: -0.02em; }
+  .route-card .subtitle { font-size: 0.76rem; opacity: 0.75; margin-bottom: 14px; font-family: var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .stat-label { font-size: 0.8rem; color: var(--gray); }
+  .stat-value { font-size: 0.85rem; font-weight: 700; }
+  .pros-cons { margin-top: 12px; }
+  .pro, .con {
+    font-size: 0.8rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  .verdict-banner {
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(94, 234, 212, 0.25) 0%, transparent 60%),
+      linear-gradient(135deg, #1B4F3F 0%, #2D6A4F 100%);
+    color: #F5F1EA;
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 18px;
+    border: 1px solid rgba(245, 241, 234, 0.12);
+    box-shadow: var(--shadow-lg);
+  }
+  .verdict-banner h3 { font-size: 1.2rem; font-weight: 600; font-style: italic; letter-spacing: -0.01em; }
+  .verdict-banner p { font-size: 0.85rem; opacity: 0.9; margin-top: 6px; font-family: var(--font-body); }
+
+  /* DAY PLANNER */
+  .days-toggle {
+    display: flex;
+    background: var(--gray-light);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 16px;
+    gap: 4px;
+  }
+  .day-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .day-btn.active {
+    background: var(--white);
+    color: var(--blue);
+    box-shadow: var(--shadow);
+  }
+  .day-btn:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+  .day-plan { display: none; }
+  .day-plan.active { display: block; }
+  .day-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .day-row:last-child { border-bottom: none; }
+  .day-num {
+    background: var(--blue);
+    color: var(--white);
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(15, 59, 78, 0.2);
+  }
+  .day-content { flex: 1; }
+  .day-route { font-weight: 700; font-size: 0.95rem; }
+  .day-hours {
+    display: inline-block;
+    background: var(--orange-light);
+    color: var(--orange);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin: 4px 0;
+  }
+  .day-stops { font-size: 0.82rem; color: var(--gray); margin-top: 2px; }
+  .overnight {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--purple-light);
+    color: var(--purple);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+  }
+  .warning-box {
+    background: var(--red-light);
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--red);
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  /* SKIP IMPACT */
+  .skip-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .skip-btn {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    color: var(--dark);
+  }
+  .skip-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .skip-btn.selected {
+    background: var(--red-light);
+    border-color: var(--red);
+    color: var(--red);
+    font-weight: 600;
+  }
+  .skip-btn:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+  .impact-card {
+    border-radius: var(--radius);
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: var(--gray-light);
+  }
+  .impact-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+  }
+  .impact-row:last-child { border-bottom: none; }
+  .impact-label { color: var(--gray); }
+  .impact-val { font-weight: 700; }
+  .impact-good { color: var(--green); }
+  .impact-bad { color: var(--red); }
+  .impact-neutral { color: var(--blue); }
+  .no-skip-msg {
+    text-align: center;
+    color: var(--gray);
+    padding: 30px;
+    font-size: 0.9rem;
+  }
+
+  /* LOFOTEN HIGHLIGHTS */
+  .highlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 400px) { .highlight-grid { grid-template-columns: 1fr; } }
+  .highlight-card {
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .highlight-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: #C7BEA8;
+  }
+  .highlight-icon { font-size: 1.7rem; margin-bottom: 8px; }
+  .highlight-name { font-family: var(--font-display); font-weight: 600; font-size: 1rem; letter-spacing: -0.01em; }
+  .highlight-time { font-size: 0.76rem; color: var(--gray); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+  .highlight-tip { font-size: 0.82rem; color: var(--blue); margin-top: 6px; font-style: italic; line-height: 1.45; }
+
+  /* INFO BOXES */
+  .info-box {
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .info-box.blue { background: var(--blue-light); color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .info-box.green { background: var(--green-light); color: #166534; border: 1px solid #bbf7d0; }
+  .info-box.orange { background: var(--orange-light); color: #9a3412; border: 1px solid #fed7aa; }
+  .info-box-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+  /* EV SECTION */
+  .ev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 400px) { .ev-grid { grid-template-columns: 1fr; } }
+  .ev-stop {
+    background: var(--green-light);
+    border: 1px solid #86efac;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 0.82rem;
+  }
+  .ev-stop .ev-city { font-weight: 700; font-size: 0.9rem; color: var(--green); }
+  .ev-stop .ev-detail { color: #166534; margin-top: 2px; }
+
+  /* FOOTER */
+  .footer-note {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--gray);
+    margin-top: 30px;
+    padding: 0 20px;
+  }
+
+  /* MOBILE FRIENDLY */
+  @media (max-width: 480px) {
+    .hero h1 { font-size: 1.4rem; }
+    .content { padding: 16px 12px 60px; }
+    .card { padding: 16px; }
+  }
+
+  /* ICONS */
+  .icon {
+    width: 1.05em;
+    height: 1.05em;
+    stroke-width: 1.75;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+    vertical-align: -0.18em;
+  }
+  .icon-lg { width: 1.3em; height: 1.3em; }
+  .tab .icon { margin-right: 6px; }
+
+  /* ROUTE MAP */
+  .map-wrap { position: relative; }
+  .map-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .map-toggle {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--dark);
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .map-toggle:hover { border-color: var(--blue); color: var(--blue); }
+  .map-toggle.active {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+    font-weight: 600;
+  }
+  .map-toggle:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+  .trip-map {
+    width: 100%;
+    height: 540px;
+    display: block;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #E8EFF2;
+    z-index: 0;
+  }
+  .trip-map.loading::after {
+    content: 'Loading roads…';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--white);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--gray);
+    box-shadow: var(--shadow);
+  }
+  .map-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 59, 78, 0.88);
+    color: #F5F1EA;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    z-index: 400;
+    transition: opacity 0.3s;
+    letter-spacing: 0.02em;
+  }
+  .map-hint.gone { opacity: 0; }
+  .map-status {
+    font-size: 0.78rem;
+    color: var(--gray);
+    margin-top: 8px;
+    min-height: 1em;
+  }
+  .map-status.err { color: var(--red); }
+
+  /* Leaflet marker styles (custom divIcons) */
+  .leaflet-div-icon {
+    background: transparent !important;
+    border: none !important;
+  }
+  .leaflet-container { font-family: var(--font-body); }
+  .pin {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2.5px solid var(--white);
+    box-shadow: 0 2px 8px rgba(13, 27, 42, 0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--white);
+  }
+  .pin.lg { width: 28px; height: 28px; font-size: 13px; }
+  .pin.overnight { background: var(--green); }
+  .pin.oslo { background: var(--dark); width: 26px; height: 26px; }
+  .pin.lofoten { background: var(--red); width: 30px; height: 30px; }
+  .pin.stopover { background: var(--blue); width: 18px; height: 18px; font-size: 9px; }
+  .pin.must { background: var(--midnight-sun); color: var(--dark); width: 20px; height: 20px; font-size: 14px; }
+  .leaflet-popup-content-wrapper { border-radius: 10px; }
+  .leaflet-popup-content {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    line-height: 1.45;
+    margin: 10px 12px;
+  }
+  .leaflet-popup-content b {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .leaflet-popup-content .pop-meta { color: var(--gray); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+  /* Must-visit list synced with selection */
+  .must-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .must-list li {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+  .must-list li.active {
+    border-color: var(--midnight-sun);
+    box-shadow: 0 4px 14px rgba(232, 183, 120, 0.35);
+  }
+  .must-list li .mdot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--midnight-sun); flex-shrink: 0; margin-top: 6px;
+  }
+  .must-list li .mname { font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; }
+  .must-list li .mhint { font-size: 0.78rem; color: var(--gray); margin-top: 2px; line-height: 1.4; }
+  .must-list .section-head {
+    grid-column: 1 / -1;
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.75rem;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  .must-list .section-head:first-child { margin-top: 0; }
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    margin-top: 14px;
+    font-size: 0.78rem;
+    color: var(--gray);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+  .legend-swatch.dashed {
+    background-image: linear-gradient(to right, currentColor 50%, transparent 50%);
+    background-size: 6px 3px;
+    background-repeat: repeat-x;
+    background-color: transparent !important;
+  }
+
+  /* WEATHER CARD */
+  .weather-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .weather-item {
+    background: var(--gray-light);
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+  }
+  .weather-item .w-loc {
+    font-size: 0.78rem;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .weather-item .w-temp {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin-top: 2px;
+  }
+  .weather-item .w-note {
+    font-size: 0.78rem;
+    color: var(--gray);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+  .midnight-sun-banner {
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(232, 183, 120, 0.35) 0%, transparent 60%),
+      linear-gradient(135deg, #0F3B4E 0%, #1E6F8C 100%);
+    color: #F5F1EA;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .midnight-sun-banner .ms-icon { color: var(--midnight-sun); flex-shrink: 0; }
+  .midnight-sun-banner strong { color: var(--midnight-sun); }
+
+  /* ALTERNATE STAYS */
+  .alt-group {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .alt-group:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+  .alt-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .alt-group-head h4 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .alt-group-head .alt-main-meta { font-size: 0.78rem; color: var(--gray); }
+  .alt-main-meta .size-pill {
+    display: inline-block;
+    background: var(--gray-light);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    color: var(--dark);
+    margin-right: 4px;
+  }
+  .alt-list { display: grid; gap: 10px; }
+  .alt-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--white);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .alt-card:hover { border-color: #C7BEA8; box-shadow: var(--shadow); }
+  .alt-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .alt-card-head .alt-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .alt-stats {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--gray);
+  }
+  .alt-stats .stat-chip {
+    background: var(--gray-light);
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+  .alt-stats .stat-chip.detour { background: var(--blue-light); color: var(--blue); }
+  .alt-procon { font-size: 0.82rem; line-height: 1.5; margin-top: 4px; }
+  .alt-procon .p { color: var(--green); display: block; }
+  .alt-procon .c { color: var(--gray); display: block; }
+  .alt-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .alt-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--dark);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    border-bottom: 1px solid var(--border);
+  }
+  .alt-btn:hover {
+    background: var(--blue-light);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+  .alt-btn .icon { width: 0.9em; height: 0.9em; }
+  .alt-btn.select {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+    font-weight: 600;
+  }
+  .alt-btn.select:hover {
+    background: #0a2a37;
+    border-color: #0a2a37;
+    color: var(--white);
+  }
+
+  .alt-card.selected {
+    border-color: var(--green);
+    background: linear-gradient(135deg, rgba(45, 106, 79, 0.06) 0%, transparent 100%);
+    box-shadow: 0 4px 14px rgba(45, 106, 79, 0.15);
+  }
+  .alt-selected-pill {
+    display: inline-block;
+    background: var(--green);
+    color: var(--white);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+  }
+
+  /* Live schedule picker chips */
+  .schedule-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: var(--gray-light);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 0.78rem;
+  }
+  .schedule-picks .pick-chip {
+    background: var(--white);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--dark);
+  }
+  .schedule-picks .pick-chip.altered {
+    background: #FEF3E2;
+    border-color: var(--midnight-sun);
+    color: var(--dark);
+  }
+  .schedule-picks .pick-chip.change-link {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: auto;
+  }
+  .schedule-picks .pick-chip.change-link:hover {
+    background: #0a2a37;
+    border-color: #0a2a37;
+    color: var(--white);
+  }
+
+  /* FERRY CARD */
+  .ferry-timeline {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 14px;
+    margin-top: 10px;
+    font-size: 0.88rem;
+  }
+  .ferry-timeline .f-time {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+  .ferry-timeline .f-event {
+    color: var(--dark);
+  }
+  .ferry-timeline .f-event small { display: block; color: var(--gray); font-size: 0.8rem; margin-top: 2px; }
+
+  /* ANIMATIONS */
+  .section.active { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- SVG ICON SPRITE (Lucide-style) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;overflow:hidden;" aria-hidden="true">
+  <defs>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></symbol>
+    <symbol id="i-mountain" viewBox="0 0 24 24"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+    <symbol id="i-cloud-sun" viewBox="0 0 24 24"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/></symbol>
+    <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-ship" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M12 10v4"/><path d="M12 2v3"/></symbol>
+    <symbol id="i-signpost" viewBox="0 0 24 24"><path d="M12 13v8"/><path d="M12 3v3"/><path d="M18 6a2 2 0 0 1 1.387.56l2.307 2.188a1 1 0 0 1 0 1.504l-2.307 2.188A2 2 0 0 1 18 13H6a2 2 0 0 1-1.387-.56L2.306 10.25a1 1 0 0 1 0-1.504l2.307-2.188A2 2 0 0 1 6 6z"/></symbol>
+    <symbol id="i-clipboard-check" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></symbol>
+    <symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+    <symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></symbol>
+    <symbol id="i-thermometer" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+  </defs>
+</svg>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-kicker">Summer 2026 · 4 Cars · 8 Days</div>
+  <h1>A Northbound Road Trip <span class="amp">to</span> the Lofoten Islands</h1>
+  <p>Oslo → Trondheim → Mo i Rana → Bodø → Lofoten → <em>? ? ?</em> → Oslo &nbsp;·&nbsp; Departs July 4</p>
+  <div class="hero-badges">
+    <span class="badge">Trondheim booked</span>
+    <span class="badge">Mo i Rana booked</span>
+    <span class="badge">3 nights in Stamsund</span>
+    <span class="badge">Bodø ferry planned</span>
+  </div>
+  <div class="hero-decision">Tonight's decision — which way home? 🇸🇪 or 🇳🇴</div>
+</div>
+
+<!-- TABS -->
+<nav class="tabs" role="tablist" aria-label="Trip sections">
+  <button class="tab active" role="tab" onclick="showTab('overview')"><svg class="icon"><use href="#i-compass"/></svg>Overview</button>
+  <button type="button" class="tab" role="tab" onclick="showTab('routes')"><svg class="icon"><use href="#i-route"/></svg>Return Routes</button>
+  <button type="button" class="tab" role="tab" onclick="showTab('nights')"><svg class="icon"><use href="#i-moon"/></svg>Night Stops</button>
+  <button type="button" class="tab" role="tab" onclick="showTab('skip')"><svg class="icon"><use href="#i-skip"/></svg>Skip Impact</button>
+  <button type="button" class="tab" role="tab" onclick="showTab('lofoten')"><svg class="icon"><use href="#i-mountain"/></svg>Lofoten</button>
+  <button type="button" class="tab" role="tab" onclick="showTab('ev')"><svg class="icon"><use href="#i-zap"/></svg>EV Info</button>
+</nav>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- ===== OVERVIEW ===== -->
+  <div class="section active" id="overview">
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--green)"><use href="#i-map-pin"/></svg> Going Route — Confirmed &amp; Booked</div>
+      <div class="stops-list">
+
+        <div class="stop-item">
+          <div class="stop-dot" style="background:#0F3B4E; color:#F5F1EA;">1</div>
+          <div class="stop-info">
+            <div class="stop-name">🏙️ Oslo — Departure</div>
+            <div class="stop-detail"><strong>Fri July 4, 2026</strong> &nbsp;|&nbsp; Morning start</div>
+            <span class="stop-tag info-tag">🚗 Day 1 start</span>
+          </div>
+        </div>
+
+        <div class="stop-item">
+          <div class="stop-dot" style="background:#2D6A4F; color:#F5F1EA;">2</div>
+          <div class="stop-info">
+            <div class="stop-name">🏔️ Trondheim — Night 1</div>
+            <div class="stop-detail">~6–7 hrs from Oslo &nbsp;|&nbsp; Fri July 4 → Sat July 5</div>
+            <div class="stop-detail" style="margin-top:4px;"><strong>📍 Klæbuveien 127, 7031 Trondheim</strong></div>
+            <span class="stop-tag booked">🏡 Booked ✅</span>
+          </div>
+        </div>
+
+        <div class="stop-item">
+          <div class="stop-dot" style="background:#2D6A4F; color:#F5F1EA;">3</div>
+          <div class="stop-info">
+            <div class="stop-name">🌊 Mo i Rana (Yttervik) — Night 2</div>
+            <div class="stop-detail">~5–6 hrs from Trondheim &nbsp;|&nbsp; Sat July 5 → Sun July 6</div>
+            <div class="stop-detail" style="margin-top:4px;"><strong>📍 Yttervik, Mo i Rana</strong></div>
+            <span class="stop-tag booked">🏡 Booked ✅</span>
+          </div>
+        </div>
+
+        <div class="stop-item">
+          <div class="stop-dot" style="background:#1E6F8C; color:#F5F1EA;">4</div>
+          <div class="stop-info">
+            <div class="stop-name">⛴️ Mo i Rana → Bodø → Ferry</div>
+            <div class="stop-detail"><strong>Sun July 6</strong> &nbsp;|&nbsp; ~3 hrs drive + ~3.5 hr ferry crossing to Moskenes</div>
+            <span class="stop-tag info-tag">⛴️ Ferry Planned</span>
+          </div>
+        </div>
+
+        <div class="stop-item">
+          <div class="stop-dot" style="background:linear-gradient(135deg,#B23A48 0%,#E8B778 100%); color:#F5F1EA;">★</div>
+          <div class="stop-info">
+            <div class="stop-name">🏝️ Lofoten — Stamsund (3 nights)</div>
+            <div class="stop-detail">Sun July 6 → Wed July 9 &nbsp;|&nbsp; ~2.5 days exploring</div>
+            <div class="stop-detail" style="margin-top:4px;"><strong>📍 Steineveien 17, 8340 Stamsund</strong></div>
+            <span class="stop-tag booked">🏡 3 Nights Booked ✅</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--red)"><use href="#i-signpost"/></svg> Return Route — Decision Needed</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="flex:1; min-width:140px; background:var(--green-light); border:2px solid var(--green); border-radius:10px; padding:12px; text-align:center;">
+          <div style="font-size:1.5rem;">🇸🇪</div>
+          <div style="font-weight:800; color:var(--green); margin-top:4px;">Option A</div>
+          <div style="font-size:0.8rem; color:#166534;">Sweden Route</div>
+          <div style="font-size:0.75rem; margin-top:4px; color:var(--gray);">Via Kiruna → Umeå</div>
+        </div>
+        <div style="flex:1; min-width:140px; background:var(--blue-light); border:2px solid var(--blue); border-radius:10px; padding:12px; text-align:center;">
+          <div style="font-size:1.5rem;">🇳🇴</div>
+          <div style="font-weight:800; color:var(--blue); margin-top:4px;">Option B</div>
+          <div style="font-size:0.8rem; color:#1d4ed8;">Norway Route</div>
+          <div style="font-size:0.75rem; margin-top:4px; color:var(--gray);">Via Fauske → Trondheim</div>
+        </div>
+      </div>
+      <div class="info-box orange">
+        <span class="info-box-icon">⚠️</span>
+        <span><strong>2-day return = ❌ Too hard.</strong> You'd be driving 15–18 hrs/day. 3-day return is the only sensible option for a convoy of 4 cars.</span>
+      </div>
+      <div style="text-align:center; padding-top:4px;">
+        <span style="font-size:0.85rem; color:var(--blue); cursor:pointer; font-weight:600;" onclick="showTab('routes')">→ See full route comparison</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--purple)"><use href="#i-ship"/></svg> Ferry — Bodø → Moskenes (Sun Jul 6)</div>
+      <p style="font-size:0.85rem; color:var(--gray); margin-bottom:10px; line-height:1.5;">
+        Operator: <a href="https://www.torghatten-nord.no/" target="_blank" rel="noopener">Torghatten Nord</a>
+        &nbsp;·&nbsp; Crossing: ~3 h 15 min
+        &nbsp;·&nbsp; <strong style="color:var(--red);">Book ASAP</strong> — summer sailings with cars sell out weeks in advance.
+      </p>
+      <div class="info-box orange" style="margin-bottom:14px;">
+        <span class="info-box-icon"><svg class="icon icon-lg"><use href="#i-alert"/></svg></span>
+        <span><strong>Goal:</strong> arrive Stamsund (Steineveien 17) before 18:00 for dinner &amp; check-in. Moskenes → Stamsund is ~1 h 30 min (~102 km). Working backwards, target the early-afternoon sailing:</span>
+      </div>
+      <div class="ferry-timeline">
+        <div class="f-time">~11:30</div>
+        <div class="f-event">Leave Mo i Rana (Yttervik) <small>~3 hr drive to Bodø terminal via E6</small></div>
+        <div class="f-time">~12:15</div>
+        <div class="f-event">Arrive Bodø ferry terminal <small>Check-in cutoff = 45 min before sailing</small></div>
+        <div class="f-time">~13:00</div>
+        <div class="f-event">Ferry departs Bodø <small>Representative mid-day summer sailing — confirm actual time when booking</small></div>
+        <div class="f-time">~16:15</div>
+        <div class="f-event">Arrive Moskenes <small>Disembark, quick coffee stop possible</small></div>
+        <div class="f-time">~17:45</div>
+        <div class="f-event" style="color:var(--green); font-weight:600;">Arrive Stamsund — check in &amp; dinner 🎉</div>
+      </div>
+      <div class="info-box blue" style="margin-top:14px;">
+        <span class="info-box-icon"><svg class="icon icon-lg"><use href="#i-lightbulb"/></svg></span>
+        <span><strong>Backup:</strong> if the 13:00 sailing is sold out, the next morning sailing (~10:00) works too — you'd arrive Stamsund around 14:30. Avoid the last evening sailing; you'd arrive after midnight.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--midnight-sun)"><use href="#i-cloud-sun"/></svg> Weather &amp; Daylight — Early July</div>
+      <div class="midnight-sun-banner">
+        <svg class="icon icon-lg ms-icon"><use href="#i-sunrise"/></svg>
+        <div style="font-size:0.88rem; line-height:1.5;">
+          <strong>Midnight Sun in Lofoten</strong> — the sun does not set from late May to ~July 17. Expect full daylight at 02:00. Bring a sleep mask. Great for late-night photography and hiking; terrible for jet lag.
+        </div>
+      </div>
+      <div class="weather-grid">
+        <div class="weather-item">
+          <div class="w-loc">Oslo</div>
+          <div class="w-temp">15–23°C</div>
+          <div class="w-note">Warmest stop. Occasional summer storms.</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-loc">Trondheim</div>
+          <div class="w-temp">12–20°C</div>
+          <div class="w-note">Mild, changeable. Pack a light rain jacket.</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-loc">Mo i Rana</div>
+          <div class="w-temp">10–18°C</div>
+          <div class="w-note">Cooler. Mosquitoes near lakes/forests.</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-loc">Lofoten</div>
+          <div class="w-temp">9–16°C</div>
+          <div class="w-note">Coastal &amp; wet. Wind + rain likely some days.</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-loc">Kiruna / Umeå 🇸🇪</div>
+          <div class="w-temp">11–22°C</div>
+          <div class="w-note">Inland Sweden tends to be warmer &amp; drier than Norwegian coast.</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-loc">Fauske / return 🇳🇴</div>
+          <div class="w-temp">9–17°C</div>
+          <div class="w-note">Mountain passes — weather flips fast, check yr.no same day.</div>
+        </div>
+      </div>
+      <div class="info-box blue" style="margin-top:14px;">
+        <span class="info-box-icon"><svg class="icon icon-lg"><use href="#i-sparkles"/></svg></span>
+        <span><strong>Pack:</strong> layers, waterproof shell, sturdy shoes, sleep mask, swimsuit (midnight-sun swim at Haukland Beach is a thing), sunglasses. Temps feel cold in wind — a warm fleece beats a bulky coat.</span>
+      </div>
+      <p style="font-size:0.78rem; color:var(--gray); margin-top:12px;">
+        Forecasts are approximate historical July ranges — check
+        <a href="https://www.yr.no/en/forecast/daily-table/1-72837/Norway/Nordland/Lofoten/Lofoten" target="_blank" rel="noopener">yr.no</a> a few days before departure for actuals.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--blue)"><use href="#i-clipboard-check"/></svg> Booking Status</div>
+      <div class="impact-row">
+        <span class="impact-label">🏡 Trondheim (Night 1) — Klæbuveien 127</span>
+        <span class="stop-tag booked">✅ Booked</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🏡 Mo i Rana (Night 2) — Yttervik</span>
+        <span class="stop-tag booked">✅ Booked</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">⛴️ Bodø → Moskenes ferry</span>
+        <span class="stop-tag booked">✅ Planned</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🏝️ Stamsund — Steineveien 17 (3 nights)</span>
+        <span class="stop-tag booked">✅ Booked</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🏨 Return Night 1 (Kiruna or Fauske)</span>
+        <span class="stop-tag needs-booking">⚠️ Needs Booking</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🏨 Return Night 2 (Umeå or Trondheim)</span>
+        <span class="stop-tag needs-booking">⚠️ Needs Booking</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ROUTES ===== -->
+  <div class="section" id="routes">
+
+    <div class="card map-wrap">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--blue)"><use href="#i-map-pin"/></svg> Route Map — Real Roads</div>
+      <div class="map-controls" role="group" aria-label="Toggle return route visibility">
+        <button type="button" class="map-toggle active" data-route="both" onclick="setMapRoute('both')">Show both returns</button>
+        <button type="button" class="map-toggle" data-route="sweden" onclick="setMapRoute('sweden')">🇸🇪 Sweden only</button>
+        <button type="button" class="map-toggle" data-route="norway" onclick="setMapRoute('norway')">🇳🇴 Norway only</button>
+      </div>
+      <div class="map-wrap-inner" style="position:relative;">
+        <div id="trip-map" class="trip-map loading" role="img" aria-label="Interactive map of Norway and Sweden with trip routes"></div>
+        <div id="map-hint" class="map-hint">Click map to enable scroll-zoom · pinch on mobile</div>
+      </div>
+      <div id="map-status" class="map-status">Click a pin for details. Toggle buttons above to isolate a return route.</div>
+      <div class="map-legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:#2D6A4F;"></span>Going route (booked)</span>
+        <span class="legend-item"><span class="legend-swatch dashed" style="color:#1E6F8C;"></span>Ferry</span>
+        <span class="legend-item"><span class="legend-swatch dashed" style="color:#2D6A4F;"></span>🇸🇪 Sweden return</span>
+        <span class="legend-item"><span class="legend-swatch dashed" style="color:#B23A48;"></span>🇳🇴 Norway return</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--midnight-sun);"></span>Must-visit stop</span>
+      </div>
+    </div>
+
+    <div class="card" id="must-visit-card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--midnight-sun)"><use href="#i-sparkles"/></svg> <span id="must-title">Must-Visit Stops — Showing Both Returns</span></div>
+      <p style="font-size:0.82rem; color:var(--gray); margin-bottom:12px;">Toggle the map above to see must-visit stops for a specific return route. Highlighted stops also appear as amber pins on the map.</p>
+      <ul class="must-list" id="must-list"></ul>
+    </div>
+
+    <div class="verdict-banner">
+      <h3>Recommended: Sweden Route</h3>
+      <p>Easier driving · Better for EVs · No burnout at end of trip</p>
+    </div>
+
+    <div class="route-grid">
+      <!-- SWEDEN -->
+      <div class="route-card sweden">
+        <h3>🇸🇪 Option A</h3>
+        <div class="subtitle">Sweden Route — RECOMMENDED</div>
+        <div class="stat-row"><span class="stat-label">Total distance</span><span class="stat-value">~1,850 km</span></div>
+        <div class="stat-row"><span class="stat-label">Avg day</span><span class="stat-value" style="color:var(--green)">7–9 hrs</span></div>
+        <div class="stat-row"><span class="stat-label">EV friendly</span><span class="stat-value" style="color:var(--green)">✅ Yes</span></div>
+        <div class="stat-row"><span class="stat-label">Scenery</span><span class="stat-value">🌲 Good</span></div>
+        <div class="pros-cons">
+          <div class="pro" style="color:var(--green)">✅ Balanced driving days</div>
+          <div class="pro" style="color:var(--green)">✅ EV charging easy</div>
+          <div class="pro" style="color:var(--green)">✅ New country (Sweden!)</div>
+          <div class="pro" style="color:var(--green)">✅ Less tiring for convoy</div>
+          <div class="con" style="color:var(--gray)">⚡ Less dramatic views</div>
+          <div class="con" style="color:var(--gray)">⚡ More highway driving</div>
+        </div>
+      </div>
+
+      <!-- NORWAY -->
+      <div class="route-card norway">
+        <h3>🇳🇴 Option B</h3>
+        <div class="subtitle">Norway Route — SCENIC</div>
+        <div class="stat-row"><span class="stat-label">Total distance</span><span class="stat-value">~1,750 km</span></div>
+        <div class="stat-row"><span class="stat-label">Avg day</span><span class="stat-value" style="color:var(--orange)">7–10 hrs</span></div>
+        <div class="stat-row"><span class="stat-label">EV friendly</span><span class="stat-value" style="color:var(--orange)">⚡ Harder</span></div>
+        <div class="stat-row"><span class="stat-label">Scenery</span><span class="stat-value">🏔️ Stunning</span></div>
+        <div class="pros-cons">
+          <div class="pro" style="color:var(--green)">✅ Max Norway scenery</div>
+          <div class="pro" style="color:var(--green)">✅ Trondheim stop = nice</div>
+          <div class="pro" style="color:var(--green)">✅ Feels complete</div>
+          <div class="con" style="color:var(--gray)">⚡ Slower mountain roads</div>
+          <div class="con" style="color:var(--gray)">⚡ EV charging tricky</div>
+          <div class="con" style="color:var(--gray)">⚡ More tiring at end</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--midnight-sun)"><use href="#i-lightbulb"/></svg> The Key Argument</div>
+      <div class="info-box green">
+        <span class="info-box-icon">💡</span>
+        <span>We're already driving Oslo → Trondheim → Mo i Rana → Lofoten on the way there. That's a <strong>massive amount of Norway scenery</strong> already. The Sweden return adds variety without burnout.</span>
+      </div>
+      <div class="info-box blue">
+        <span class="info-box-icon">🌟</span>
+        <span><strong>Abisko bonus:</strong> Sweden route passes near Abisko National Park — worth a 30-min stop for the scenery if we drive through in daylight.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🇸🇪 Must-Visit on Sweden Route</div>
+      <div class="highlight-grid">
+        <div class="highlight-card">
+          <div class="highlight-icon">🌉</div>
+          <div class="highlight-name">Narvik</div>
+          <div class="highlight-time">Coffee stop · 30 min</div>
+          <div class="highlight-tip">Last Norwegian town before Sweden. Gondola views if time allows.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🏔️</div>
+          <div class="highlight-name">Abisko NP</div>
+          <div class="highlight-time">30 min – 1 hr</div>
+          <div class="highlight-tip">Lake Torneträsk viewpoint. Roadside — no detour needed.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">❄️</div>
+          <div class="highlight-name">Kiruna</div>
+          <div class="highlight-time">Overnight</div>
+          <div class="highlight-tip">Icehotel (Jukkasjärvi ~20 min out) + LKAB mine viewpoint.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🌲</div>
+          <div class="highlight-name">Luleå</div>
+          <div class="highlight-time">Lunch · 1 hr</div>
+          <div class="highlight-tip">Gammelstad church town — UNESCO heritage. Good EV stop.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🏛️</div>
+          <div class="highlight-name">Umeå</div>
+          <div class="highlight-time">Overnight</div>
+          <div class="highlight-tip">University city — great food scene for convoy dinner.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🌊</div>
+          <div class="highlight-name">High Coast / Höga Kusten</div>
+          <div class="highlight-time">Detour · 1–2 hrs</div>
+          <div class="highlight-tip">UNESCO coast between Umeå &amp; Sundsvall. Bridge viewpoint.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🇳🇴 Must-Visit on Norway Route</div>
+      <div class="highlight-grid">
+        <div class="highlight-card">
+          <div class="highlight-icon">🌀</div>
+          <div class="highlight-name">Saltstraumen</div>
+          <div class="highlight-time">45 min detour</div>
+          <div class="highlight-tip">World's strongest maelstrom — near Bodø on the way south.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">⭕</div>
+          <div class="highlight-name">Arctic Circle Centre</div>
+          <div class="highlight-time">30 min stop</div>
+          <div class="highlight-tip">Saltfjellet — photo op crossing 66°33'N. Café + gift shop.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🧊</div>
+          <div class="highlight-name">Svartisen Glacier</div>
+          <div class="highlight-time">2–3 hr detour</div>
+          <div class="highlight-tip">Norway's 2nd-largest glacier near Mo i Rana. Only if time allows.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">⛰️</div>
+          <div class="highlight-name">Seven Sisters (De Syv Søstre)</div>
+          <div class="highlight-time">Drive-by view</div>
+          <div class="highlight-tip">Mountain range south of Mo i Rana — dramatic scenery.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🏙️</div>
+          <div class="highlight-name">Trondheim</div>
+          <div class="highlight-time">Overnight</div>
+          <div class="highlight-tip">Nidaros Cathedral, Bakklandet wharves. Already saw going — shorter stop ok.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🎿</div>
+          <div class="highlight-name">Dovrefjell NP</div>
+          <div class="highlight-time">Drive-through</div>
+          <div class="highlight-tip">Day 3 between Trondheim and Oslo. Musk ox country.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Day-by-Day Comparison <span style="font-family:var(--font-body); font-size:0.72rem; color:var(--gray); font-weight:500; letter-spacing:0.06em; text-transform:uppercase; margin-left:auto;">Live · OSRM</span></div>
+      <div id="schedule-picks" class="schedule-picks"></div>
+      <div style="overflow-x:auto;">
+        <table id="schedule-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+          <thead>
+            <tr style="background:var(--gray-light);">
+              <th style="padding:10px 8px; text-align:left; border-radius:8px 0 0 0;">Day</th>
+              <th style="padding:10px 8px; text-align:left; color:var(--green);">🇸🇪 Sweden</th>
+              <th style="padding:10px 8px; text-align:left; color:var(--blue);">🇳🇴 Norway</th>
+            </tr>
+          </thead>
+          <tbody id="schedule-body"></tbody>
+          <tfoot id="schedule-foot"></tfoot>
+        </table>
+      </div>
+      <p style="font-size:0.76rem; color:var(--gray); margin-top:10px; line-height:1.5;">
+        Times are OSRM driving durations × 1.15 (break buffer for a 4-car convoy). <strong>Change the overnight picks in the Night Stops tab</strong> → this table updates live.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== NIGHT STOPS ===== -->
+  <div class="section" id="nights">
+
+    <div class="days-toggle">
+      <button type="button" class="day-btn active" onclick="showDayPlan('sweden3', this)">🇸🇪 Sweden (3-day)</button>
+      <button type="button" class="day-btn" onclick="showDayPlan('norway3', this)">🇳🇴 Norway (3-day)</button>
+      <button type="button" class="day-btn" onclick="showDayPlan('2day', this)">❌ 2-Day Return</button>
+    </div>
+
+    <!-- 2-DAY PLAN -->
+    <div class="day-plan" id="2day">
+      <div class="warning-box">
+        ❌ 2-day return is NOT recommended — drives of 15–18 hrs/day in a convoy of 4 cars is exhausting and dangerous.
+      </div>
+      <div class="card">
+        <div class="card-title">📛 Why 2-Day Return Fails</div>
+        <div class="day-row">
+          <div class="day-num" style="background:var(--red);">1</div>
+          <div class="day-content">
+            <div class="day-route">Lofoten → somewhere midway</div>
+            <span class="day-hours">⏱️ 15–18 hrs driving</span>
+            <div class="day-stops">You'd need to reach roughly Trondheim in one day. That means non-stop driving from morning until midnight. For a convoy with EVs needing 2-3 charging stops — impossible.</div>
+          </div>
+        </div>
+        <div class="day-row">
+          <div class="day-num" style="background:var(--red);">2</div>
+          <div class="day-content">
+            <div class="day-route">Trondheim → Oslo</div>
+            <span class="day-hours">⏱️ 6–7 hrs</span>
+            <div class="day-stops">The second day is fine — but you'd arrive at night 1 completely burnt out, especially after a full Lofoten trip.</div>
+          </div>
+        </div>
+        <div class="info-box orange" style="margin-top:12px;">
+          <span class="info-box-icon">🚫</span>
+          <span>Bottom line: <strong>Skip this option.</strong> 3-day return is the same number of extra nights, but everyone arrives home fresh.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SWEDEN 3-DAY -->
+    <div class="day-plan active" id="sweden3">
+      <div class="card">
+        <div class="card-title">🇸🇪 Sweden Route — 3-Day Plan (Wed Jul 9 → Fri Jul 11)</div>
+        <div class="day-row">
+          <div class="day-num">1</div>
+          <div class="day-content">
+            <div class="day-route">Lofoten → Narvik → Kiruna 🇸🇪</div>
+            <span class="day-hours">⏱️ 6–7 hrs</span>
+            <div class="day-stops">Cross into Sweden via Narvik on E10. Optional stop: Abisko NP (~30 min). Arrive Kiruna evening.</div>
+            <div class="overnight">🌙 Night 1: Kiruna <span class="stop-tag needs-booking" style="margin:0; font-size:0.7rem;">⚠️ Book!</span></div>
+            <div class="day-stops" style="margin-top:8px;"><strong>💰 Est. stay:</strong> Hotel ~800–1400 SEK &nbsp;|&nbsp; Cabin/hostel ~500–800 SEK &nbsp;|&nbsp; Camping ~200–350 SEK</div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🔗 Search:</strong> <a href="https://www.booking.com/searchresults.html?ss=Kiruna%2C+Sweden" target="_blank" style="color:var(--blue);">Booking</a> · <a href="https://www.airbnb.com/s/Kiruna--Sweden" target="_blank" style="color:var(--blue);">Airbnb</a> · <a href="https://www.camping.se/en/sv/kiruna" target="_blank" style="color:var(--blue);">Camping</a> · <a href="https://www.hostelworld.com/s?q=Kiruna" target="_blank" style="color:var(--blue);">Hostelworld</a></div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🏠 To Oslo from here:</strong> still 2 more days driving (~15–17 hrs total)</div>
+          </div>
+        </div>
+        <div class="day-row">
+          <div class="day-num">2</div>
+          <div class="day-content">
+            <div class="day-route">Kiruna → Luleå → Umeå 🇸🇪</div>
+            <span class="day-hours">⏱️ 8–9 hrs</span>
+            <div class="day-stops">Long but steady highway through Swedish Lapland. Lunch stop in Luleå. Arrive Umeå evening.</div>
+            <div class="overnight">🌙 Night 2: Umeå <span class="stop-tag needs-booking" style="margin:0; font-size:0.7rem;">⚠️ Book!</span></div>
+            <div class="day-stops" style="margin-top:8px;"><strong>💰 Est. stay:</strong> Hotel ~900–1500 SEK &nbsp;|&nbsp; Cabin/hostel ~500–900 SEK &nbsp;|&nbsp; Camping ~250–400 SEK</div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🔗 Search:</strong> <a href="https://www.booking.com/searchresults.html?ss=Ume%C3%A5%2C+Sweden" target="_blank" style="color:var(--blue);">Booking</a> · <a href="https://www.airbnb.com/s/Umea--Sweden" target="_blank" style="color:var(--blue);">Airbnb</a> · <a href="https://www.camping.se/en/sv/umea" target="_blank" style="color:var(--blue);">Camping</a></div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🏠 To Oslo from here:</strong> 7–9 hrs next day ✅</div>
+          </div>
+        </div>
+        <div class="day-row">
+          <div class="day-num">3</div>
+          <div class="day-content">
+            <div class="day-route">Umeå → Oslo 🇳🇴</div>
+            <span class="day-hours">⏱️ 7–9 hrs</span>
+            <div class="day-stops">South through Sweden via Sundsvall, cross into Norway. Arrive home evening. Comfortable finish.</div>
+            <div class="overnight" style="background:var(--green-light); color:var(--green);">🏠 Home: Oslo</div>
+          </div>
+        </div>
+      </div>
+      <div class="info-box green">
+        <span class="info-box-icon">✅</span>
+        <span>Perfect balance — no day exceeds 9 hours. Easy on EV charging. Convoy-friendly. Cheaper accommodation (Sweden SEK &lt; Norway NOK). Best choice for ending the trip well.</span>
+      </div>
+    </div>
+
+    <!-- NORWAY 3-DAY -->
+    <div class="day-plan" id="norway3">
+      <div class="card">
+        <div class="card-title">🇳🇴 Norway Route — 3-Day Plan (Wed Jul 9 → Fri Jul 11)</div>
+        <div class="day-row">
+          <div class="day-num" style="background:var(--blue);">1</div>
+          <div class="day-content">
+            <div class="day-route">Lofoten → ferry → Bodø → Fauske</div>
+            <span class="day-hours">⏱️ 7–9 hrs (inc. ferry)</span>
+            <div class="day-stops">Ferry back from Moskenes then E6 south. Optional: Saltstraumen detour near Bodø. Fauske is small — limited options, book early.</div>
+            <div class="overnight">🌙 Night 1: Fauske <span class="stop-tag needs-booking" style="margin:0; font-size:0.7rem;">⚠️ Book!</span></div>
+            <div class="day-stops" style="margin-top:8px;"><strong>💰 Est. stay:</strong> Hotel ~1100–1700 NOK &nbsp;|&nbsp; Cabin ~700–1100 NOK &nbsp;|&nbsp; Camping ~300–500 NOK</div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🔗 Search:</strong> <a href="https://www.booking.com/searchresults.html?ss=Fauske%2C+Norway" target="_blank" style="color:var(--blue);">Booking</a> · <a href="https://www.airbnb.com/s/Fauske--Norway" target="_blank" style="color:var(--blue);">Airbnb</a> · <a href="https://www.camping.no/en/campsites?location=fauske" target="_blank" style="color:var(--blue);">Camping.no</a></div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🏠 To Oslo from here:</strong> still 2 more days driving (~16–17 hrs total)</div>
+          </div>
+        </div>
+        <div class="day-row">
+          <div class="day-num" style="background:var(--blue);">2</div>
+          <div class="day-content">
+            <div class="day-route">Fauske → Mo i Rana → Trondheim</div>
+            <span class="day-hours">⏱️ 9–10 hrs 😬</span>
+            <div class="day-stops">Hardest day — ~700 km on mountain roads. Passes Arctic Circle Centre + Mo i Rana again. EV charging needs planning.</div>
+            <div class="overnight">🌙 Night 2: Trondheim <span class="stop-tag needs-booking" style="margin:0; font-size:0.7rem;">⚠️ Book!</span></div>
+            <div class="day-stops" style="margin-top:8px;"><strong>💰 Est. stay:</strong> Hotel ~1200–2000 NOK &nbsp;|&nbsp; Apartment ~900–1400 NOK &nbsp;|&nbsp; Camping ~350–550 NOK</div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🔗 Search:</strong> <a href="https://www.booking.com/searchresults.html?ss=Trondheim%2C+Norway" target="_blank" style="color:var(--blue);">Booking</a> · <a href="https://www.airbnb.com/s/Trondheim--Norway" target="_blank" style="color:var(--blue);">Airbnb</a> · <a href="https://www.camping.no/en/campsites?location=trondheim" target="_blank" style="color:var(--blue);">Camping.no</a></div>
+            <div class="day-stops" style="margin-top:4px;"><strong>🏠 To Oslo from here:</strong> 6–7 hrs next day ✅</div>
+          </div>
+        </div>
+        <div class="day-row">
+          <div class="day-num" style="background:var(--blue);">3</div>
+          <div class="day-content">
+            <div class="day-route">Trondheim → Oslo</div>
+            <span class="day-hours">⏱️ 6–7 hrs ✅</span>
+            <div class="day-stops">Comfortable final leg on E6. Pass Dovrefjell NP (musk ox territory). Arrive Oslo afternoon/evening.</div>
+            <div class="overnight" style="background:var(--green-light); color:var(--green);">🏠 Home: Oslo</div>
+          </div>
+        </div>
+      </div>
+      <div class="info-box blue">
+        <span class="info-box-icon">⚠️</span>
+        <span>Day 2 (Fauske → Trondheim) is 9–10 hrs on slow mountain roads — tough for a convoy. Also: we already drove this exact road going north. Choose this only if the group really wants max Norway scenery.</span>
+      </div>
+    </div>
+
+    <div class="card" id="alt-stays-card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--blue)"><use href="#i-signpost"/></svg> Not feeling these towns? Alternates</div>
+      <p style="font-size:0.82rem; color:var(--gray); margin-bottom:14px; line-height:1.5;">
+        If Kiruna, Umeå, Fauske or Trondheim don't work out (sold out, too expensive, not the vibe), here are the next-best options for each overnight — with population, city size, and a one-click search on Airbnb / Booking / Google.
+      </p>
+      <div id="alt-stays-body"></div>
+    </div>
+
+  </div>
+
+  <!-- ===== SKIP IMPACT ===== -->
+  <div class="section" id="skip">
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--red)"><use href="#i-skip"/></svg> What if we skip a stop?</div>
+      <p style="font-size:0.85rem; color:var(--gray); margin-bottom:16px;">Select a stop to see how skipping it affects your driving time and experience.</p>
+      <div class="skip-selector">
+        <button type="button" class="skip-btn" onclick="selectSkip('saltstraumen', this)">🌀 Saltstraumen</button>
+        <button type="button" class="skip-btn" onclick="selectSkip('abisko', this)">🏔️ Abisko</button>
+        <button type="button" class="skip-btn" onclick="selectSkip('kiruna', this)">❄️ Kiruna overnight</button>
+        <button type="button" class="skip-btn" onclick="selectSkip('trondheim', this)">🏙️ Trondheim overnight</button>
+        <button type="button" class="skip-btn" onclick="selectSkip('mora', this)">🌊 Mo i Rana overnight</button>
+      </div>
+      <div class="impact-card" id="skip-impact">
+        <div class="no-skip-msg">👆 Select a stop above to see the impact of skipping it</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LOFOTEN ===== -->
+  <div class="section" id="lofoten">
+    <div class="card">
+      <div class="card-title">🏝️ Lofoten — What to Explore</div>
+      <div class="info-box blue">
+        <span class="info-box-icon">📅</span>
+        <span><strong>You have ~2.5 days.</strong> Arrival day = late (post-ferry), so count it as a half day. Plan 2 full days of exploring.</span>
+      </div>
+      <div class="highlight-grid">
+        <div class="highlight-card">
+          <div class="highlight-icon">🎣</div>
+          <div class="highlight-name">Reine</div>
+          <div class="highlight-time">2–3 hrs</div>
+          <div class="highlight-tip">Most iconic view in Lofoten. Must-visit for photos.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🌉</div>
+          <div class="highlight-name">Hamnøy</div>
+          <div class="highlight-time">1–2 hrs</div>
+          <div class="highlight-tip">Classic red cabins on the bridge — Instagram gold.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🏖️</div>
+          <div class="highlight-name">Haukland Beach</div>
+          <div class="highlight-time">2–3 hrs</div>
+          <div class="highlight-tip">Best beach in Lofoten. White sand + mountains.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🏘️</div>
+          <div class="highlight-name">Henningsvær</div>
+          <div class="highlight-time">2 hrs</div>
+          <div class="highlight-tip">Charming village on a small island. Great café stop.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🔱</div>
+          <div class="highlight-name">Nusfjord</div>
+          <div class="highlight-time">1–2 hrs</div>
+          <div class="highlight-tip">Preserved fishing village — historic and photogenic.</div>
+        </div>
+        <div class="highlight-card">
+          <div class="highlight-icon">🌅</div>
+          <div class="highlight-name">Unstad Beach</div>
+          <div class="highlight-time">1–2 hrs</div>
+          <div class="highlight-tip">Surfer's beach with dramatic scenery. Sunset views.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🗓️ Suggested 2.5-Day Plan</div>
+      <div class="day-row">
+        <div class="day-num" style="background:var(--purple);">½</div>
+        <div class="day-content">
+          <div class="day-route">Arrival Evening</div>
+          <div class="day-stops">Ferry arrives late. Check in, dinner, rest. Maybe a short drive to Hamnøy for sunset if energy allows.</div>
+        </div>
+      </div>
+      <div class="day-row">
+        <div class="day-num" style="background:var(--purple);">1</div>
+        <div class="day-content">
+          <div class="day-route">South Lofoten Loop</div>
+          <div class="day-stops">Reine → Hamnøy → Nusfjord → Haukland Beach. Full scenic day — bring picnic lunch.</div>
+        </div>
+      </div>
+      <div class="day-row">
+        <div class="day-num" style="background:var(--purple);">2</div>
+        <div class="day-content">
+          <div class="day-route">North Lofoten + Villages</div>
+          <div class="day-stops">Henningsvær → Unstad Beach → Stamsund. End evening in village for group dinner.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EV INFO ===== -->
+  <div class="section" id="ev">
+    <div class="card">
+      <div class="card-title"><svg class="icon icon-lg" style="color:var(--midnight-sun)"><use href="#i-zap"/></svg> EV Charging — Key Points</div>
+      <div class="info-box orange">
+        <span class="info-box-icon">🚗</span>
+        <span><strong>Convoy note:</strong> Don't drive all 4 cars glued together. Plan <strong>regroup points</strong> every 2–3 hours so EV cars can charge while petrol cars wait nearby.</span>
+      </div>
+      <div class="info-box green">
+        <span class="info-box-icon">✅</span>
+        <span>Sweden route has <strong>much better EV infrastructure</strong> — Kiruna and Umeå both have multiple fast-chargers. Norway mountain roads have sparse charging.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚡ Charging Stops — Sweden Route</div>
+      <div class="ev-grid">
+        <div class="ev-stop">
+          <div class="ev-city">Narvik 🇳🇴</div>
+          <div class="ev-detail">Ionity + Tesla Supercharger<br>Good stop before crossing to Sweden</div>
+        </div>
+        <div class="ev-stop">
+          <div class="ev-city">Kiruna 🇸🇪</div>
+          <div class="ev-detail">Multiple fast chargers in town<br>Overnight charging at hotel</div>
+        </div>
+        <div class="ev-stop">
+          <div class="ev-city">Luleå 🇸🇪</div>
+          <div class="ev-city" style="font-size:0.78rem; margin-top:2px; color:#166534;">(if needed on Day 2)</div>
+          <div class="ev-detail">Large city — excellent charging options</div>
+        </div>
+        <div class="ev-stop">
+          <div class="ev-city">Umeå 🇸🇪</div>
+          <div class="ev-detail">Well-equipped city<br>Overnight charging available</div>
+        </div>
+        <div class="ev-stop">
+          <div class="ev-city">Sundsvall 🇸🇪</div>
+          <div class="ev-city" style="font-size:0.78rem; margin-top:2px; color:#166534;">(Day 3 mid-stop)</div>
+          <div class="ev-detail">Easy highway stop before Oslo</div>
+        </div>
+        <div class="ev-stop">
+          <div class="ev-city">Oslo 🇳🇴</div>
+          <div class="ev-detail">Home! 🏠 Charge at home overnight</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📱 Useful Apps for EVs</div>
+      <div class="impact-row">
+        <span class="impact-label">🗺️ Route planning</span>
+        <span class="impact-val impact-good">ABRP</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">⚡ Find chargers</span>
+        <span class="impact-val impact-good">Plugshare / Chargemap</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🇸🇪 Sweden fast charge</span>
+        <span class="impact-val impact-good">Ionity / Recharge</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">🇳🇴 Norway charging</span>
+        <span class="impact-val impact-good">Mer / Fortum</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .content -->
+
+<div class="footer-note">
+  Made for the Lofoten crew 🚗🚗🚗🚗 &nbsp;|&nbsp; Meeting: tonight · Trip: July 4–11, 2026
+</div>
+
+<script>
+  const TABS = ['overview','routes','nights','skip','lofoten','ev'];
+  const HASH_PREFIX = 'tab-';  // prefix so the hash never matches a section's element id (avoids browser auto-scroll)
+
+  function currentHashTab() {
+    const h = location.hash.replace(/^#/, '');
+    if (!h.startsWith(HASH_PREFIX)) return null;
+    const id = h.slice(HASH_PREFIX.length);
+    return TABS.includes(id) ? id : null;
+  }
+
+  function activateTab(id) {
+    if (!TABS.includes(id)) id = 'overview';
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.tab')[TABS.indexOf(id)].classList.add('active');
+    // If the routes tab activates, resize the Leaflet map (it needs a visible container).
+    if (id === 'routes' && window._tripMap) {
+      setTimeout(() => window._tripMap.invalidateSize(), 50);
+    }
+  }
+
+  function showTab(id) {
+    const newHash = '#' + HASH_PREFIX + id;
+    // replaceState (not pushState) — tab clicks shouldn't pollute browser history.
+    if (location.hash !== newHash) {
+      history.replaceState(null, '', newHash);
+    }
+    activateTab(id);
+    // Jump to top without smooth scroll (smooth + hashchange caused the "reloading" feel).
+    window.scrollTo(0, 0);
+  }
+
+  function syncFromHash() {
+    activateTab(currentHashTab() || 'overview');
+  }
+  window.addEventListener('hashchange', syncFromHash);
+  document.addEventListener('DOMContentLoaded', syncFromHash);
+
+  function showDayPlan(id, btn) {
+    document.querySelectorAll('.day-plan').forEach(d => d.classList.remove('active'));
+    document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ============================================================
+  // Interactive map (Leaflet + OSM tiles + OSRM road routing)
+  // ============================================================
+
+  // City definitions — real coordinates
+  const CITIES = {
+    oslo:      { name: 'Oslo',       coord: [59.9139, 10.7522], role: 'Start · Home', cls: 'oslo',      letter: 'O' },
+    trondheim: { name: 'Trondheim',  coord: [63.4144, 10.4089], role: 'Night 1 (Jul 4) · Klæbuveien 127', cls: 'overnight', letter: '1' },
+    mo:        { name: 'Mo i Rana',  coord: [66.3150, 14.0700], role: 'Night 2 (Jul 5) · Yttervik',       cls: 'overnight', letter: '2' },
+    bodo:      { name: 'Bodø',       coord: [67.2804, 14.4048], role: 'Ferry terminal (Jul 6)',           cls: 'stopover', letter: 'F' },
+    moskenes:  { name: 'Moskenes',   coord: [67.9307, 13.0097], role: 'Ferry arrival — Lofoten',         cls: 'stopover', letter: 'M' },
+    stamsund:  { name: 'Stamsund (Lofoten)', coord: [68.1208, 13.8354], role: '3 nights (Jul 6–9) · Steineveien 17', cls: 'lofoten', letter: '★' },
+    narvik:    { name: 'Narvik',     coord: [68.4385, 17.4272], role: 'Sweden route · coffee stop',       cls: 'stopover', letter: 'N' },
+    kiruna:    { name: 'Kiruna',     coord: [67.8558, 20.2253], role: 'Sweden return · Night 1',          cls: 'overnight', letter: 'K' },
+    umea:      { name: 'Umeå',       coord: [63.8258, 20.2630], role: 'Sweden return · Night 2',          cls: 'overnight', letter: 'U' },
+    fauske:    { name: 'Fauske',     coord: [67.2593, 15.3911], role: 'Norway return · Night 1',          cls: 'overnight', letter: 'F' },
+  };
+
+  // Road-routing waypoints (real lat/lon). OSRM will snap & return actual road polylines.
+  const ROUTE_WAYPOINTS = {
+    going:  ['oslo','trondheim','mo','bodo'],                        // road + then ferry drawn separately
+    sweden: ['stamsund','moskenes','narvik','kiruna','umea','oslo'], // Moskenes is here as the ferry destination start for the drive-back logic, but Narvik onwards is road
+    norway: ['stamsund','moskenes','fauske','mo','trondheim','oslo'],
+  };
+
+  // Must-visit POIs (curated). Each: name, coord, hint, route ('going'|'sweden'|'norway').
+  const MUST_VISIT = [
+    // going / shared (Norway north)
+    { name: 'Lillehammer',         coord: [61.1153, 10.4662], hint: '1994 Winter Olympics town. Easy lunch stop on Day 1.',                     route: 'going' },
+    { name: 'Dovrefjell NP',       coord: [62.2667, 9.5667],  hint: 'Musk ox country. Worth a short stretch-break on Oslo–Trondheim leg.',      route: 'going' },
+    { name: 'Arctic Circle Centre',coord: [66.5537, 15.3870], hint: 'Cross 66°33′N — photo op + café. On E6 between Mo i Rana and Bodø.',       route: 'going' },
+    { name: 'Saltstraumen',        coord: [67.2361, 14.6250], hint: "World's strongest tidal current. ~30 min detour near Bodø.",               route: 'going' },
+    // sweden return
+    { name: 'Abisko NP',           coord: [68.3544, 18.8279], hint: 'Lake Torneträsk viewpoint. Roadside on E10 — no detour needed.',           route: 'sweden' },
+    { name: 'Jukkasjärvi / Icehotel', coord: [67.8475, 20.6083], hint: 'Original Icehotel, 20 min from Kiruna. Summer: art gallery + river.',   route: 'sweden' },
+    { name: 'Luleå — Gammelstad',  coord: [65.6447, 22.0284], hint: 'UNESCO church town. Good lunch + EV stop on Day 2.',                       route: 'sweden' },
+    { name: 'Höga Kusten (High Coast)', coord: [62.8000, 18.1000], hint: 'UNESCO coast, dramatic bridge. Small detour on Day 3.',               route: 'sweden' },
+    // norway return
+    { name: 'Svartisen Glacier',   coord: [66.6719, 13.7517], hint: "Norway's 2nd-largest glacier. 2–3 hr detour near Mo i Rana.",              route: 'norway' },
+    { name: 'Seven Sisters (Søstrene)', coord: [65.9667, 12.6000], hint: 'Drive-by view of a seven-peaked mountain range south of Mo i Rana.',   route: 'norway' },
+    { name: 'Trondheim — Nidaros', coord: [63.4275, 10.3967], hint: 'Medieval cathedral + Bakklandet wharves. Last-night city.',                 route: 'norway' },
+  ];
+
+  let map, tripMap, layers = {}, mustMarkers = [];
+
+  function pinIcon(city) {
+    return L.divIcon({
+      className: 'pin-wrap',
+      html: `<div class="pin ${city.cls} ${city.cls === 'lofoten' ? 'lg' : ''}">${city.letter}</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  }
+  function mustIcon() {
+    return L.divIcon({
+      className: 'pin-wrap',
+      html: `<div class="pin must">★</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+  }
+
+  async function fetchOsrmRoute(waypoints) {
+    // waypoints: array of city keys. OSRM wants lon,lat;lon,lat.
+    const coords = waypoints
+      .map(k => CITIES[k].coord)
+      .map(([lat, lng]) => `${lng},${lat}`)
+      .join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('OSRM ' + res.status);
+    const data = await res.json();
+    if (!data.routes || !data.routes.length) throw new Error('No route');
+    // OSRM returns [lon,lat] — Leaflet wants [lat,lon]
+    return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  }
+
+  function straightLine(a, b) {
+    return [CITIES[a].coord, CITIES[b].coord];
+  }
+
+  async function initMap() {
+    if (!window.L || map) return;
+    const el = document.getElementById('trip-map');
+    if (!el) return;
+
+    map = L.map(el, {
+      center: [65.5, 15.5],
+      zoom: 5,
+      scrollWheelZoom: false,  // start disabled — enabled on click so page scroll isn't hijacked
+      attributionControl: true,
+    });
+    window._tripMap = map;
+
+    // Click-to-activate scroll-zoom UX:
+    //   click inside the map  → enable wheel zoom + fade hint
+    //   click anywhere else   → disable again
+    const hint = document.getElementById('map-hint');
+    map.on('click', () => {
+      map.scrollWheelZoom.enable();
+      if (hint) hint.classList.add('gone');
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#trip-map')) {
+        map.scrollWheelZoom.disable();
+        if (hint) hint.classList.remove('gone');
+      }
+    });
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    // City markers (always shown — individual routes just toggle lines + must-visits)
+    Object.entries(CITIES).forEach(([key, c]) => {
+      const marker = L.marker(c.coord, { icon: pinIcon(c) }).addTo(map);
+      marker.bindPopup(
+        `<b>${c.name}</b>` +
+        `<span class="pop-meta">${c.role}</span>`
+      );
+    });
+
+    // Draw ferry leg separately (dashed) — always visible.
+    layers.ferry = L.polyline(
+      [CITIES.bodo.coord, CITIES.moskenes.coord],
+      { color: '#1E6F8C', weight: 3, dashArray: '6 6', opacity: 0.85 }
+    ).addTo(map);
+
+    // Fetch & draw routes in parallel.
+    const status = document.getElementById('map-status');
+    try {
+      const [going, sweden, norway] = await Promise.all([
+        fetchOsrmRoute(ROUTE_WAYPOINTS.going),
+        // sweden/norway: skip the ferry leg (moskenes → first road city); we'll add ferry separately
+        fetchOsrmRoute(ROUTE_WAYPOINTS.sweden.slice(1)),  // moskenes → narvik → kiruna → umea → oslo
+        fetchOsrmRoute(ROUTE_WAYPOINTS.norway.slice(1)),  // moskenes → fauske → mo → trondheim → oslo
+      ]);
+      layers.going  = L.polyline(going,  { color: '#2D6A4F', weight: 4.5, opacity: 0.9 }).addTo(map);
+      layers.sweden = L.polyline(sweden, { color: '#2D6A4F', weight: 4,   opacity: 0.9, dashArray: '10 6' }).addTo(map);
+      layers.norway = L.polyline(norway, { color: '#B23A48', weight: 4,   opacity: 0.9, dashArray: '10 6' }).addTo(map);
+
+      // Fit bounds to show everything
+      const bounds = L.latLngBounds(going.concat(sweden).concat(norway));
+      map.fitBounds(bounds, { padding: [24, 24] });
+
+      status.textContent = 'Roads via OSRM · Tiles © OpenStreetMap. Click any pin for details.';
+    } catch (err) {
+      console.warn('OSRM failed, falling back to straight lines:', err);
+      // Fallback: straight lines between waypoints
+      layers.going  = L.polyline(ROUTE_WAYPOINTS.going.map(k => CITIES[k].coord),  { color: '#2D6A4F', weight: 4.5 }).addTo(map);
+      layers.sweden = L.polyline(ROUTE_WAYPOINTS.sweden.slice(1).map(k => CITIES[k].coord), { color: '#2D6A4F', weight: 4, dashArray: '10 6' }).addTo(map);
+      layers.norway = L.polyline(ROUTE_WAYPOINTS.norway.slice(1).map(k => CITIES[k].coord), { color: '#B23A48', weight: 4, dashArray: '10 6' }).addTo(map);
+      const allPts = Object.values(CITIES).map(c => c.coord);
+      map.fitBounds(L.latLngBounds(allPts), { padding: [24, 24] });
+      status.textContent = 'Routing service unavailable — showing straight-line approximation. Tiles © OpenStreetMap.';
+      status.classList.add('err');
+    } finally {
+      el.classList.remove('loading');
+    }
+
+    // Initial must-visit rendering + route highlight
+    setMapRoute('both');
+  }
+
+  function renderMustVisit(mode) {
+    // Clear existing markers
+    mustMarkers.forEach(m => map && map.removeLayer(m));
+    mustMarkers = [];
+
+    const list = document.getElementById('must-list');
+    const title = document.getElementById('must-title');
+    list.innerHTML = '';
+
+    const groups = {
+      going:  { label: 'Going route (shared — always worth seeing)', items: MUST_VISIT.filter(p => p.route === 'going') },
+      sweden: { label: '🇸🇪 Sweden return',  items: MUST_VISIT.filter(p => p.route === 'sweden') },
+      norway: { label: '🇳🇴 Norway return',  items: MUST_VISIT.filter(p => p.route === 'norway') },
+    };
+
+    const showGroups =
+      mode === 'sweden' ? ['going', 'sweden'] :
+      mode === 'norway' ? ['going', 'norway'] :
+      ['going', 'sweden', 'norway'];
+
+    if (title) {
+      title.textContent =
+        mode === 'sweden' ? 'Must-Visit Stops — 🇸🇪 Sweden Return' :
+        mode === 'norway' ? 'Must-Visit Stops — 🇳🇴 Norway Return' :
+        'Must-Visit Stops — Showing Both Returns';
+    }
+
+    showGroups.forEach(g => {
+      const head = document.createElement('li');
+      head.className = 'section-head';
+      head.textContent = groups[g].label;
+      list.appendChild(head);
+
+      groups[g].items.forEach(p => {
+        const li = document.createElement('li');
+        const isActiveGroup = g !== 'going' && g === mode;
+        if (isActiveGroup) li.classList.add('active');
+        li.innerHTML = `
+          <span class="mdot"></span>
+          <div>
+            <div class="mname">${p.name}</div>
+            <div class="mhint">${p.hint}</div>
+          </div>
+        `;
+        list.appendChild(li);
+
+        // Also add a map marker for this stop
+        if (map) {
+          const marker = L.marker(p.coord, { icon: mustIcon() }).addTo(map);
+          marker.bindPopup(`<b>${p.name}</b><div style="margin-top:4px;">${p.hint}</div>`);
+          mustMarkers.push(marker);
+        }
+      });
+    });
+  }
+
+  // ============================================================
+  // Alternate overnight stops (Night Stops tab)
+  // ============================================================
+
+  // Anchor cities for the comparison legs
+  const ANCHOR = {
+    stamsund: [68.1208, 13.8354],
+    oslo:     [59.9139, 10.7522],
+  };
+
+  // Each slot gets: main pick + alternates. All cities carry coord for OSRM.
+  const ALT_STAYS = [
+    {
+      slot: 'swe1',
+      role: 'Sweden · Night 1',
+      route: '🇸🇪 Sweden route',
+      main: { name: 'Kiruna', pop: '17,200', size: 'Small city', note: 'Mining town, gateway to Abisko & Icehotel', coord: [67.8558, 20.2253] },
+      alternates: [
+        { name: 'Gällivare',           pop: '8,400', size: 'Small town',  coord: [67.1327, 20.6529], detour: '+1 h south on E10',        pro: 'Cheaper beds, quieter streets',                                  con: 'Less to see/do in the evening' },
+        { name: 'Jukkasjärvi',         pop: '1,100', size: 'Village',     coord: [67.8475, 20.6083], detour: '20 min east of Kiruna',    pro: 'Original Icehotel site + Torne River setting',                   con: 'Very few dining options — limited for a convoy' },
+        { name: 'Abisko (Björkliden)', pop: '~85',   size: 'Tiny village',coord: [68.3544, 18.8279], detour: '−1 h 30 min west on E10',  pro: 'Best mountain/lake views on the whole route',                    con: 'Mountain lodges book up months ahead' },
+      ],
+    },
+    {
+      slot: 'swe2',
+      role: 'Sweden · Night 2',
+      route: '🇸🇪 Sweden route',
+      main: { name: 'Umeå', pop: '93,000', size: 'City', note: 'University city — strongest food scene on the return', coord: [63.8258, 20.2630] },
+      alternates: [
+        { name: 'Luleå',         pop: '48,000', size: 'Mid-size city', coord: [65.5848, 22.1547], detour: '−3 h earlier stop', pro: 'UNESCO Gammelstad church town is worth a morning',  con: 'Makes Day 3 (to Oslo) ~2 h longer' },
+        { name: 'Skellefteå',    pop: '35,000', size: 'Small city',    coord: [64.7504, 20.9529], detour: '−1 h earlier stop', pro: 'Cheaper, new wooden high-rise + art museum',         con: 'Less atmosphere than Umeå' },
+        { name: 'Örnsköldsvik',  pop: '33,000', size: 'Small city',    coord: [63.2909, 18.7155], detour: '+1 h later stop',   pro: 'Puts you right at the Höga Kusten / High Coast',     con: 'Fewer family-sized places for 4-car convoy' },
+      ],
+    },
+    {
+      slot: 'nor1',
+      role: 'Norway · Night 1',
+      route: '🇳🇴 Norway route',
+      main: { name: 'Fauske', pop: '6,300', size: 'Small town', note: 'Limited hotel options — whatever you pick, book EARLY', coord: [67.2593, 15.3911] },
+      alternates: [
+        { name: 'Narvik',       pop: '14,100', size: 'Town',       coord: [68.4385, 17.4272], detour: '+2 h east via E6/E10',        pro: 'More hotels, dramatic fjord + gondola views',   con: 'Adds ~100 km to Day 2' },
+        { name: 'Bodø',         pop: '42,000', size: 'Small city', coord: [67.2804, 14.4048], detour: '−45 min (closer to Lofoten)', pro: 'More variety, better food, ferry-town energy', con: 'Busier, parking for 4 cars takes effort' },
+        { name: 'Saltstraumen', pop: '~400',   size: 'Village',    coord: [67.2361, 14.6250], detour: '+30 min west of Bodø',        pro: 'Maelstrom viewpoint from cabins right outside', con: 'Tiny — book the whole place as a group' },
+      ],
+    },
+    {
+      slot: 'nor2',
+      role: 'Norway · Night 2',
+      route: '🇳🇴 Norway route',
+      main: { name: 'Trondheim', pop: '212,000', size: 'Large city', note: "You'll already know it from the way north", coord: [63.4305, 10.3951] },
+      alternates: [
+        { name: 'Mosjøen',  pop: '9,800',  size: 'Small town',    coord: [65.8389, 13.1876], detour: '−3 h 30 min earlier stop', pro: 'Charming Sjøgata wooden-house old town, cheaper',             con: 'Makes Day 3 ~10 h — defeats the point' },
+        { name: 'Steinkjer',pop: '12,800', size: 'Small town',    coord: [64.0142, 11.4924], detour: '−1 h earlier stop',        pro: 'Shorter Day 2, cheaper than Trondheim',                       con: 'Quiet in the evening, less to do' },
+        { name: 'Røros',    pop: '3,500',  size: 'Historic town', coord: [62.5740, 11.3844], detour: '+1 h detour east',         pro: 'UNESCO mining town — one of the most unique stays in Norway', con: 'Real detour off E6 — adds ~2 h total' },
+      ],
+    },
+  ];
+
+  // Current selection per slot — defaults to main picks.
+  const SELECTION = {};
+  ALT_STAYS.forEach(g => { SELECTION[g.slot] = { name: g.main.name, coord: g.main.coord, isMain: true }; });
+
+  function searchLinks(cityName) {
+    const q = encodeURIComponent(cityName);
+    const qn = encodeURIComponent('overnight stay in ' + cityName);
+    return `
+      <a class="alt-btn" href="https://www.airbnb.com/s/${q}/homes" target="_blank" rel="noopener"><svg class="icon"><use href="#i-home"/></svg>Airbnb</a>
+      <a class="alt-btn" href="https://www.booking.com/searchresults.html?ss=${q}" target="_blank" rel="noopener"><svg class="icon"><use href="#i-clipboard-check"/></svg>Booking</a>
+      <a class="alt-btn" href="https://www.google.com/search?q=${qn}" target="_blank" rel="noopener"><svg class="icon"><use href="#i-sparkles"/></svg>Google</a>
+      <a class="alt-btn" href="https://www.google.com/maps/search/hotels+${q}" target="_blank" rel="noopener"><svg class="icon"><use href="#i-map-pin"/></svg>Maps</a>
+    `;
+  }
+
+  function renderAltStays() {
+    const host = document.getElementById('alt-stays-body');
+    if (!host) return;
+    host.innerHTML = ALT_STAYS.map(g => {
+      const cur = SELECTION[g.slot];
+      const mainSelected = cur.isMain;
+      return `
+      <div class="alt-group" data-slot="${g.slot}">
+        <div class="alt-group-head">
+          <h4>
+            ${g.main.name}
+            <span style="font-weight:400; color:var(--gray); font-size:0.82rem;">— ${g.role} · main pick</span>
+            ${!mainSelected ? `<button type="button" class="alt-btn" style="margin-left:8px;" onclick="selectAlternate('${g.slot}', null)">Reset to ${g.main.name}</button>` : `<span class="alt-selected-pill" style="margin-left:8px;">✓ Selected</span>`}
+          </h4>
+          <div class="alt-main-meta">
+            <span class="size-pill">${g.main.size}</span>
+            pop. ${g.main.pop} · ${g.route}
+          </div>
+        </div>
+        <div style="font-size:0.82rem; color:var(--gray); margin-bottom:12px; font-style:italic;">${g.main.note}</div>
+        <div class="alt-list">
+          ${g.alternates.map((a, i) => {
+            const isSelected = !mainSelected && cur.name === a.name;
+            return `
+            <div class="alt-card${isSelected ? ' selected' : ''}">
+              <div class="alt-card-head">
+                <div class="alt-name">${a.name}${isSelected ? ' <span class="alt-selected-pill">✓ Selected</span>' : ''}</div>
+                <div class="alt-stats">
+                  <span class="stat-chip">${a.size}</span>
+                  <span class="stat-chip">pop. ${a.pop}</span>
+                  <span class="stat-chip detour">${a.detour}</span>
+                </div>
+              </div>
+              <div class="alt-procon">
+                <span class="p">+ ${a.pro}</span>
+                <span class="c">− ${a.con}</span>
+              </div>
+              <div class="alt-actions">
+                <button type="button" class="alt-btn select" onclick="selectAlternate('${g.slot}', ${i})">${isSelected ? '✓ Selected' : 'Pick this overnight'}</button>
+                ${searchLinks(a.name)}
+              </div>
+            </div>
+          `;}).join('')}
+        </div>
+      </div>
+    `;}).join('');
+  }
+
+  // Switch selection for a slot. altIdx = index into g.alternates, or null to reset to main.
+  function selectAlternate(slot, altIdx) {
+    const g = ALT_STAYS.find(x => x.slot === slot);
+    if (!g) return;
+    if (altIdx === null || altIdx === undefined) {
+      SELECTION[slot] = { name: g.main.name, coord: g.main.coord, isMain: true };
+    } else {
+      const a = g.alternates[altIdx];
+      SELECTION[slot] = { name: a.name, coord: a.coord, isMain: false };
+    }
+    renderAltStays();
+    recomputeSchedule();
+  }
+
+  // ============================================================
+  // Live Day-by-Day schedule (Routes tab) — OSRM-backed
+  // ============================================================
+
+  const durCache = new Map();  // key: "lat1,lng1|lat2,lng2" -> hours
+
+  async function osrmDuration(from, to) {
+    const key = `${from[0]},${from[1]}|${to[0]},${to[1]}`;
+    if (durCache.has(key)) return durCache.get(key);
+    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false&alternatives=false&steps=false`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('OSRM ' + res.status);
+    const data = await res.json();
+    if (!data.routes || !data.routes.length) throw new Error('No route');
+    const hrs = data.routes[0].duration / 3600;
+    durCache.set(key, hrs);
+    return hrs;
+  }
+
+  // Convoy buffer — OSRM is optimistic (no breaks, no EV charging).
+  function convoyHrs(rawHrs) { return rawHrs * 1.15; }
+
+  function fmtHrs(h) {
+    if (h === null || h === undefined || isNaN(h)) return '—';
+    const base = convoyHrs(h);
+    const lo = Math.floor(base);
+    const hi = Math.ceil(base + 0.35);
+    return lo === hi ? `${lo} hrs` : `${lo}–${hi} hrs`;
+  }
+
+  function hrColor(h) {
+    const b = convoyHrs(h);
+    if (b <= 7) return 'var(--green)';
+    if (b <= 9) return 'var(--orange)';
+    return 'var(--red)';
+  }
+
+  function hrEmoji(h) {
+    const b = convoyHrs(h);
+    if (b <= 7) return ' ✅';
+    if (b >= 10) return ' 😬';
+    return '';
+  }
+
+  function renderSchedulePicks() {
+    const host = document.getElementById('schedule-picks');
+    if (!host) return;
+    const picks = ALT_STAYS.map(g => {
+      const cur = SELECTION[g.slot];
+      return `<span class="pick-chip ${cur.isMain ? '' : 'altered'}">
+        <strong>${g.role}:</strong> ${cur.name}
+      </span>`;
+    }).join('');
+    host.innerHTML = picks + `<a href="#tab-nights" class="pick-chip change-link" onclick="showTab('nights');return false;">Change picks →</a>`;
+  }
+
+  function setRow(day, col, html) {
+    const cell = document.querySelector(`#schedule-body tr[data-day="${day}"] td[data-col="${col}"]`);
+    if (cell) cell.innerHTML = html;
+  }
+
+  function buildScheduleSkeleton() {
+    const body = document.getElementById('schedule-body');
+    if (!body) return;
+    body.innerHTML = [1, 2, 3].map(d => `
+      <tr data-day="${d}" style="${d < 3 ? 'border-bottom:1px solid var(--border);' : ''}">
+        <td style="padding:10px 8px; font-weight:700;">Day ${d}</td>
+        <td style="padding:10px 8px;" data-col="swe"><span style="color:var(--gray);">Calculating…</span></td>
+        <td style="padding:10px 8px;" data-col="nor"><span style="color:var(--gray);">Calculating…</span></td>
+      </tr>
+    `).join('');
+  }
+
+  async function recomputeSchedule() {
+    renderSchedulePicks();
+    buildScheduleSkeleton();
+
+    const swe1 = SELECTION.swe1, swe2 = SELECTION.swe2;
+    const nor1 = SELECTION.nor1, nor2 = SELECTION.nor2;
+
+    // Kick off 6 OSRM calls in parallel; update each cell as its promise resolves.
+    const tasks = [
+      // Sweden
+      osrmDuration(ANCHOR.stamsund, swe1.coord).then(h => ({ day: 1, col: 'swe', label: `Lofoten → ${swe1.name}`, hrs: h })),
+      osrmDuration(swe1.coord,      swe2.coord).then(h => ({ day: 2, col: 'swe', label: `${swe1.name} → ${swe2.name}`, hrs: h })),
+      osrmDuration(swe2.coord,      ANCHOR.oslo).then(h => ({ day: 3, col: 'swe', label: `${swe2.name} → Oslo`, hrs: h })),
+      // Norway
+      osrmDuration(ANCHOR.stamsund, nor1.coord).then(h => ({ day: 1, col: 'nor', label: `Lofoten → ${nor1.name}`, hrs: h })),
+      osrmDuration(nor1.coord,      nor2.coord).then(h => ({ day: 2, col: 'nor', label: `${nor1.name} → ${nor2.name}`, hrs: h })),
+      osrmDuration(nor2.coord,      ANCHOR.oslo).then(h => ({ day: 3, col: 'nor', label: `${nor2.name} → Oslo`, hrs: h })),
+    ];
+
+    const totals = { swe: 0, nor: 0 };
+
+    let failed = 0;
+    for (const p of tasks) {
+      p.then(r => {
+        setRow(r.day, r.col,
+          `${r.label}<br><span style="color:${hrColor(r.hrs)}; font-size:0.78rem; font-weight:600;">${fmtHrs(r.hrs)}${hrEmoji(r.hrs)}</span>`
+        );
+        totals[r.col] += convoyHrs(r.hrs);
+        renderScheduleFoot(totals);
+      }).catch(err => {
+        console.warn('leg failed', err);
+        if (++failed === 1) {
+          const foot = document.getElementById('schedule-foot');
+          if (foot) foot.innerHTML = `<tr><td colspan="3" style="padding:10px 8px; font-size:0.82rem; color:var(--red);">Routing service unavailable — using fallback estimates.</td></tr>`;
+        }
+      });
+    }
+  }
+
+  function renderScheduleFoot(totals) {
+    const foot = document.getElementById('schedule-foot');
+    if (!foot) return;
+    const sweT = totals.swe, norT = totals.nor;
+    const sweFmt = sweT ? `${Math.round(sweT * 10) / 10} hrs` : '…';
+    const norFmt = norT ? `${Math.round(norT * 10) / 10} hrs` : '…';
+    const winner = (sweT && norT)
+      ? (Math.abs(sweT - norT) < 0.5 ? 'Roughly equal'
+         : sweT < norT ? `🇸🇪 Sweden saves ${(norT - sweT).toFixed(1)} hrs total`
+         : `🇳🇴 Norway saves ${(sweT - norT).toFixed(1)} hrs total`)
+      : '';
+    foot.innerHTML = `
+      <tr style="background:var(--gray-light);">
+        <td style="padding:10px 8px; font-weight:700;">Total</td>
+        <td style="padding:10px 8px; font-weight:700; color:var(--green);">${sweFmt}</td>
+        <td style="padding:10px 8px; font-weight:700; color:var(--blue);">${norFmt}</td>
+      </tr>
+      ${winner ? `<tr><td colspan="3" style="padding:10px 8px; font-size:0.82rem; color:var(--gray); font-style:italic;">${winner}</td></tr>` : ''}
+    `;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderAltStays();
+    recomputeSchedule();
+  });
+
+  function setMapRoute(mode) {
+    // Toggle line visibility
+    if (layers.sweden && layers.norway) {
+      const sweOpacity = (mode === 'norway') ? 0.12 : 0.9;
+      const norOpacity = (mode === 'sweden') ? 0.12 : 0.9;
+      layers.sweden.setStyle({ opacity: sweOpacity });
+      layers.norway.setStyle({ opacity: norOpacity });
+    }
+    // Update toggle button state
+    document.querySelectorAll('.map-toggle').forEach(b => {
+      b.classList.toggle('active', b.dataset.route === mode);
+    });
+    // Re-render must-visit list + markers
+    renderMustVisit(mode);
+  }
+
+  // Init map once DOM + Leaflet are ready.
+  window.addEventListener('load', () => {
+    // Only init if Leaflet loaded (deferred via defer attr)
+    if (window.L) initMap();
+    else {
+      // Poll briefly in case of slow network
+      let tries = 0;
+      const iv = setInterval(() => {
+        if (window.L) { clearInterval(iv); initMap(); }
+        else if (++tries > 20) { clearInterval(iv); const s = document.getElementById('map-status'); if (s) { s.textContent = 'Map library failed to load — check internet connection.'; s.classList.add('err'); } }
+      }, 250);
+    }
+  });
+
+  const skipData = {
+    saltstraumen: {
+      name: '🌀 Saltstraumen (Day 3 going)',
+      impact: [
+        { label: 'Time saved', value: '~45 min–1 hr', cls: 'impact-good' },
+        { label: 'Route change', value: 'None — just skip the detour', cls: 'impact-neutral' },
+        { label: 'What you miss', value: "World's strongest maelstrom. Cool but not essential.", cls: 'impact-neutral' },
+        { label: 'Effect on ferry timing', value: 'Small buffer added ✅', cls: 'impact-good' },
+        { label: 'Verdict', value: 'Skip if timing is tight. Low regret.', cls: 'impact-neutral' },
+      ]
+    },
+    abisko: {
+      name: '🏔️ Abisko (Sweden route, Day 1 return)',
+      impact: [
+        { label: 'Time saved', value: '~30–45 min', cls: 'impact-good' },
+        { label: 'Route change', value: 'None — roadside stop on E10', cls: 'impact-neutral' },
+        { label: 'What you miss', value: 'Beautiful national park, lake view, great photos', cls: 'impact-bad' },
+        { label: 'Effect on Day 1 total', value: 'Day 1 becomes 5.5–6 hrs instead of 6–7 hrs', cls: 'impact-good' },
+        { label: 'Verdict', value: 'Worth 30 min. Skip only if very late departing Lofoten.', cls: 'impact-neutral' },
+      ]
+    },
+    kiruna: {
+      name: '❄️ Kiruna overnight (Sweden route)',
+      impact: [
+        { label: 'Consequence', value: 'Must drive Lofoten → Umeå in ONE day', cls: 'impact-bad' },
+        { label: 'That day becomes', value: '14–16 hrs driving ❌', cls: 'impact-bad' },
+        { label: 'EV feasibility', value: 'Very hard — 3-4 charging stops needed', cls: 'impact-bad' },
+        { label: 'Convoy feasibility', value: '❌ Not recommended', cls: 'impact-bad' },
+        { label: 'Verdict', value: 'Do NOT skip. Kiruna overnight is essential on Sweden route.', cls: 'impact-bad' },
+      ]
+    },
+    trondheim: {
+      name: '🏙️ Trondheim overnight (Norway route)',
+      impact: [
+        { label: 'Consequence', value: 'Must drive Fauske → Oslo in ONE day', cls: 'impact-bad' },
+        { label: 'That day becomes', value: '14–16 hrs driving ❌', cls: 'impact-bad' },
+        { label: 'Route difficulty', value: 'Mountain roads + heavy traffic near Oslo', cls: 'impact-bad' },
+        { label: 'You already saw Trondheim', value: 'On the way there — so less of a loss', cls: 'impact-neutral' },
+        { label: 'Verdict', value: '❌ Do NOT skip overnight. It makes the drive unbearable.', cls: 'impact-bad' },
+      ]
+    },
+    mora: {
+      name: '🌊 Mo i Rana overnight (going route)',
+      impact: [
+        { label: 'Consequence', value: 'Day 2 going becomes Trondheim → Bodø in one shot', cls: 'impact-bad' },
+        { label: 'That day becomes', value: '~11–12 hrs + ferry wait ❌', cls: 'impact-bad' },
+        { label: 'EV impact', value: 'Mo i Rana has Ionity supercharger — skipping loses key charge point', cls: 'impact-bad' },
+        { label: 'Ferry risk', value: 'Arriving tired and tight on ferry timing', cls: 'impact-bad' },
+        { label: 'Verdict', value: 'Already booked anyway — keep it. It\'s the right split.', cls: 'impact-neutral' },
+      ]
+    }
+  };
+
+  function selectSkip(key, btn) {
+    document.querySelectorAll('.skip-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const d = skipData[key];
+    let html = `<div style="font-weight:700; margin-bottom:12px; font-size:0.9rem;">Impact of skipping: ${d.name}</div>`;
+    d.impact.forEach(row => {
+      html += `<div class="impact-row"><span class="impact-label">${row.label}</span><span class="impact-val ${row.cls}">${row.value}</span></div>`;
+    });
+    document.getElementById('skip-impact').innerHTML = html;
+  }
+</script>
+</body>
+</html>
