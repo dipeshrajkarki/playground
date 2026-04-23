@@ -1,0 +1,19 @@
+{
+  "name": "Lofoten Road Trip Planner",
+  "short_name": "Lofoten",
+  "description": "Interactive Nordic road trip itinerary and route comparison.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0F3B4E",
+  "background_color": "#F5F1EA",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
