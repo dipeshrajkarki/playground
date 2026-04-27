@@ -1,0 +1,19 @@
+{
+  "name": "Playground — dipeshrajkarki",
+  "short_name": "Playground",
+  "description": "A small studio for side projects and experiments.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0F3B4E",
+  "background_color": "#F5F1EA",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
