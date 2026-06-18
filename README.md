@@ -15,4 +15,5 @@ GitHub Pages redeploys automatically on push to `main`.
 
 ## Projects
 
-- [lofoten](./lofoten/) — Lofoten road trip planner
+- [lofoten](./lofoten/) - Lofoten road trip planner
+- [norway-family-roadtrip](./norway-family-roadtrip/) - Norway family road trip companion
